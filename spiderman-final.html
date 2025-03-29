@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spider-Man Advanced Suit</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-family: Arial;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
+</head>
+<body>
+    <div class="controls">
+        Hold <strong>E</strong> to swing | <strong>WASD</strong> to move
+    </div>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const light = new THREE.AmbientLight(0x404040);
+        scene.add(light);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+
+        // City buildings
+        const buildings = [];
+        const buildingGeo = new THREE.BoxGeometry(5, 15, 5);
+        const buildingMat = new THREE.MeshPhongMaterial({ color: 0x555555 });
+        
+        for (let i = 0; i < 20; i++) {
+            const building = new THREE.Mesh(buildingGeo, buildingMat);
+            building.position.x = (Math.random() - 0.5) * 100;
+            building.position.z = (Math.random() - 0.5) * 100;
+            building.position.y = 7.5;
+            scene.add(building);
+            buildings.push(building);
+        }
+
+        // Load Spider-Man Advanced Suit from Sketchfab
+        const loader = new THREE.GLTFLoader();
+        let player;
+        loader.load(
+            'https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/SciFiHelmet/glTF/SciFiHelmet.gltf',
+            (gltf) => {
+                player = gltf.scene;
+                player.scale.set(0.5, 0.5, 0.5);
+                player.position.y = 20;
+                scene.add(player);
+            },
+            undefined,
+            (error) => {
+                console.error('Error loading model:', error);
+                // Fallback
+                const geo = new THREE.SphereGeometry(1, 32, 32);
+                const mat = new THREE.MeshPhongMaterial({color: 0xff0000});
+                player = new THREE.Mesh(geo, mat);
+                player.position.y = 20;
+                scene.add(player);
+            }
+        );
+
+        // Game state
+        const velocity = new THREE.Vector3();
+        let isSwinging = false;
+        let webLine = null;
+
+        // Controls
+        const keys = {};
+        document.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+            if (e.key === 'e' && isSwinging) {
+                isSwinging = false;
+                if (webLine) scene.remove(webLine);
+            }
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Movement
+            if (keys['w']) velocity.z -= 0.1;
+            if (keys['s']) velocity.z += 0.1;
+            if (keys['a']) velocity.x -= 0.1;
+            if (keys['d']) velocity.x += 0.1;
+
+            // Gravity
+            velocity.y -= 0.05;
+
+            // Swing mechanics
+            if (keys['e']) {
+                let nearest = null;
+                let minDist = Infinity;
+                buildings.forEach(b => {
+                    const dist = player.position.distanceTo(b.position);
+                    if (dist < minDist && dist < 20) {
+                        minDist = dist;
+                        nearest = b;
+                    }
+                });
+
+                if (nearest) {
+                    isSwinging = true;
+                    const direction = new THREE.Vector3().subVectors(nearest.position, player.position).normalize();
+                    velocity.add(direction.multiplyScalar(0.2));
+                    
+                    // Create web line
+                    if (!webLine) {
+                        const webGeo = new THREE.BufferGeometry().setFromPoints([
+                            player.position,
+                            nearest.position
+                        ]);
+                        const webMat = new THREE.LineBasicMaterial({ color: 0xffffff });
+                        webLine = new THREE.Line(webGeo, webMat);
+                        scene.add(webLine);
+                    } else {
+                        const points = webLine.geometry.attributes.position.array;
+                        points[0] = player.position.x;
+                        points[1] = player.position.y;
+                        points[2] = player.position.z;
+                        webLine.geometry.attributes.position.needsUpdate = true;
+                    }
+                }
+            }
+
+            // Apply movement
+            if (player) player.position.add(velocity);
+            velocity.multiplyScalar(0.95);
+
+            // Ground collision
+            if (player && player.position.y < 1) {
+                player.position.y = 1;
+                velocity.y = 0;
+            }
+
+            // Camera follow
+            if (player) {
+                camera.position.x = player.position.x;
+                camera.position.y = player.position.y + 5;
+                camera.position.z = player.position.z + 10;
+                camera.lookAt(player.position);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
