@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spider-Man Swing</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            font-family: Arial;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        Hold <strong>E</strong> to swing | WASD to move
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script>
+        // Basic Three.js scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Simple city buildings
+        const buildings = [];
+        for (let i = 0; i < 20; i++) {
+            const geometry = new THREE.BoxGeometry(5, 10 + Math.random()*20, 5);
+            const material = new THREE.MeshBasicMaterial({color: 0x555555});
+            const building = new THREE.Mesh(geometry, material);
+            building.position.x = (Math.random() - 0.5) * 100;
+            building.position.z = (Math.random() - 0.5) * 100;
+            building.position.y = 5;
+            scene.add(building);
+            buildings.push(building);
+        }
+
+        // Simple Spider-Man (red sphere for now)
+        const geometry = new THREE.SphereGeometry(1, 32, 32);
+        const material = new THREE.MeshBasicMaterial({color: 0xff0000});
+        const player = new THREE.Mesh(geometry, material);
+        player.position.y = 10;
+        scene.add(player);
+
+        // Controls
+        const keys = {};
+        document.addEventListener('keydown', (e) => keys[e.key.toLowerCase()] = true);
+        document.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Simple movement
+            if (keys['w']) player.position.z -= 0.1;
+            if (keys['s']) player.position.z += 0.1;
+            if (keys['a']) player.position.x -= 0.1;
+            if (keys['d']) player.position.x += 0.1;
+            
+            // Simple gravity
+            player.position.y -= 0.05;
+            if (player.position.y < 1) player.position.y = 1;
+            
+            // Simple swinging when E is pressed
+            if (keys['e']) {
+                player.position.y += 0.1;
+                // Find nearest building
+                let nearest = null;
+                let minDist = Infinity;
+                buildings.forEach(b => {
+                    const dist = player.position.distanceTo(b.position);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearest = b;
+                    }
+                });
+                if (nearest) {
+                    // Pull toward building
+                    player.position.x += (nearest.position.x - player.position.x) * 0.01;
+                    player.position.z += (nearest.position.z - player.position.z) * 0.01;
+                }
+            }
+            
+            camera.position.x = player.position.x;
+            camera.position.y = player.position.y + 5;
+            camera.position.z = player.position.z + 10;
+            camera.lookAt(player.position);
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
